@@ -1,0 +1,200 @@
+---
+title: "Assignment 7: ARIMA"
+subtitle: "Univeristy of Washington - Data Science Certification - Method for Data Analysis"
+author: "Josh Jensen"
+date: "August 16, 2016"
+output: html_document
+---
+
+
+
+### Assignment
+
+Perform time series analysis on the data for **Ice Cream Production**, in the CADairyProduction.csv file to answer the following questions:
+
+- Is this time series stationary?
+- Is there a significant seasonal component? 
+- For the remainder from the decomposition of the time series what is the order of the ARMA(p,q) process that best fits.
+- Forecast production for 12 months and examine numeric values andplot the confidence intervals. Are the confidence intervals reasonably small compared to the forecast means.
+
+
+
+### Conclusions
+
+We visually conclude that the ice cream production time series is stationary. Further, leveraging the Augmented Dickey-Fuller test for stationarity, we reject the null hypothesis of the series being not stationary under 95% confidence. As well, we also find that there is a significant seasonal component present in the ice cream production time series.
+
+Moreover, we fit an ARMA(0,4) process to the remainder of the decomposed series. Finally, using an ARIMA(3,0,1)(1,1,2) process, we forecast the next 12 months of production.
+
+
+
+### Set up
+
+
+First lets load libraries and data.
+
+``` {r message=FALSE}
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(forecast)
+library(tseries)
+
+# read in data
+dairy <- read_csv('CADairyProduction.csv') 
+```
+
+Lets inspect time range ensure the data is complet with 12 months per year.
+
+``` {r}
+dairy %>% group_by(Year) %>% summarise(n()) %>% arrange(Year)
+```
+
+Now create time series object, `icecream`.
+
+``` {r}
+icecream <- ts(dairy$Icecream.Prod, start = 1995, deltat = 1/12)
+icecream
+```
+
+
+
+### Inspect stationarity
+
+First lets plot `icecream`.
+
+``` {r}
+plot(icecream)
+abline(reg=lm(icecream ~ time(icecream)))
+```
+
+The seasonal components are readily apparent. However, still unsure about heteroscedasticity. As well, the trend component may be mild enough or skewed to still consider stationary; we should apply a test to verify.
+
+As a gut check on heteroscedasticity, now look side by side with a log transform.
+
+``` {r}
+par(mfrow=c(2,1))
+plot(icecream)
+abline(reg=lm(icecream ~ time(icecream)))
+
+plot(log(icecream))
+abline(reg=lm(log(icecream) ~ time(icecream)))
+
+par(mfrow=c(1,1))
+```
+
+The log transform appears not to make a huge difference.
+
+Now lets inspect standard deviation by year. If heteroskedasticity exists, then we should see a trend in the standard deviation.
+
+``` {r}
+plot(aggregate(icecream, FUN = sd))
+```
+
+Appears an anamoly exists in 2006-2009, but no overall trend exists.
+
+Now finally to test if the series is stationary, lets use the Augmented Dickey-Fuller test, which has the null hypothesis of the series not being stationary.
+
+``` {r}
+adf.test(icecream, alternative = 'stationary')
+```
+
+We reject the null hypothesis and accept the alternative hypothesis that the series is stationary.
+
+Now lets inspect the ACF and PACF plots.
+
+``` {r}
+acf_plots <- function(ts) {
+  par(mfrow=c(2,1))
+  acf(ts, main = "ACF")
+  pacf(ts, main = "PACF")
+  par(mfrow=c(1,1))
+}
+
+acf_plots(icecream)
+```
+
+It is clear from the ACF plot that there is large seasonal component at play.
+
+
+
+### Run ARMA on remainder of the decomposed series
+
+First lets decompose the series into seasonal, trend, and remainder components.
+
+``` {r}
+icecream_decomp <- stl(icecream, s.window = 'periodic')
+
+plot(icecream_decomp)
+```
+
+Now we begin fitting ARMA models to the remainder of the series.
+
+``` {r}
+# AR(1) 
+fit_arma10 <- arima(icecream_decomp$time.series[,'remainder'], order = c(1,0,0))
+acf_plots(fit_arma10$residuals[-1])
+# not a good fit
+```
+
+``` {r}
+# MA(1)
+fit_arma01 <- arima(icecream_decomp$time.series[,'remainder'], order = c(0,0,1))
+acf_plots(fit_arma01$residuals[-1])
+# not a good fit
+```
+
+``` {r}
+# ARMA(1,1)
+fit_arma11 <- arima(icecream_decomp$time.series[,'remainder'], order = c(1,0,1))
+acf_plots(fit_arma11$residuals[-1])
+# also not a good fit
+```
+
+``` {r}
+# ARMA(1,2)
+fit_arma12 <- arima(icecream_decomp$time.series[,'remainder'], order = c(1,0,2))
+acf_plots(fit_arma12$residuals[-1])
+# becoming tedious...
+```
+
+Instead of continuing to brute force it, lets use `auto.arima`.
+
+``` {r}
+# bring in the big guns
+fit_arma <- auto.arima(icecream_decomp$time.series[,'remainder'],
+                         max.p = 5, max.d = 0, max.q = 5,
+                         max.order = 5, seasonal = FALSE, stepwise = FALSE)
+
+summary(fit_arma)
+acf_plots(fit_arma$residuals[-1])
+```
+
+Diagnostic plots look good. ARMA(0,4) has it!
+
+
+
+### Train ARIMA & forecast ice cream production
+
+Now we use `auto.arima` to train 
+
+``` {r}
+fit_arima <- auto.arima(icecream, max.p=3, max.q=3,
+                         max.P=2, max.Q=2, max.order=5, 
+                         max.d=2, max.D=1, start.p=0, 
+                         start.q=0, start.P=0, start.Q=0)
+
+summary(fit_arima)
+acf_plots(fit_arima$residuals[-1])
+```
+
+Diagnostic plots are looking very good.
+
+Now forecast out the next 12 months of production.
+
+``` {r}
+icecream_forecast <- forecast(fit_arima, h=12)
+
+summary(icecream_forecast)
+plot(icecream_forecast)
+```
+

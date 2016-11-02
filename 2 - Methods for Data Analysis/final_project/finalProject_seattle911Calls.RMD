@@ -1,0 +1,306 @@
+---
+title: "Investigating and Predicting Seattle Fire 911 Dispatch Call Volume"
+author: "Josh Jensen"
+date: "August 29, 2016"
+output: html_document
+subtitle: Univeristy of Washington - Data Science Certification - Method for Data
+  Analysis - Final Project
+---
+
+### Summary
+
+The City of Seattle currently maintains a log of Seattle Fire Department dispatches that result from 911 calls. This data is hosted for public use [HERE](https://catalog.data.gov/dataset/seattle-real-time-fire-911-calls-6cdf3) on data.gov. Currently the log spans from November 9, 2011 to May 21, 2016. 
+
+In this report, I transform the Seattle Fire 911 call dispatch log into time series of volume, with the objective of investigating trends and predicting volume.
+
+I find that there is a +5.25% annual growth rate in monthly call volume of Seattle Fire 911 call dispatches; this is inferred from an OLS model on the trend component of the decomposed monthly time series. Further, I predict out 12 months of monthly volume of Seattle Fire 911 call dispatches, from May 2016 through April 2017, using an ARIMA(1,1,0)(1,0,0) process.
+
+
+
+### Set Up & Cleaning
+
+First load libraries and data.
+
+``` {r message=FALSE, warning=FALSE}
+# load libraries
+library(dplyr)
+library(readr)
+library(lubridate)
+library(reshape2)
+library(xts)
+library(tseries)
+library(forecast)
+library(ggplot2)
+
+# read in data
+# https://data.seattle.gov/api/views/kzjm-xkqj/rows.csv?accessType=DOWNLOAD
+# calls911_log <- read_csv('https://data.seattle.gov/api/views/kzjm-xkqj/rows.csv?accessType=DOWNLOAD')
+calls911_log <- read_csv('Seattle_Real_Time_Fire_911_Calls.csv')
+
+# first glance inspection
+str(calls911_log)
+```
+
+Next deal with some general data cleaning.
+
+``` {r}
+# deal with first row
+calls911_log <- calls911_log[-1,]
+
+# standardize column names
+colnames(calls911_log) <- gsub(' ', '_', tolower(colnames(calls911_log)))
+
+# check that datetime now has no nas 
+sum(is.na(calls911_log$datetime))
+# all good
+
+# convert datetime from a character to a POSIX date-time
+calls911_log$dt <- mdy_hms(calls911_log$datetime)
+# 2046 records have a different datetime stamp pattern
+calls911_log[is.na(calls911_log$dt),]$dt <- as.POSIXct(ymd(gsub('T.*','',calls911_log[is.na(calls911_log$dt),]$datetime)))
+
+# ensure that dt now has no nas 
+sum(is.na(calls911_log$dt))
+
+# final look at the structure
+str(calls911_log)
+```
+
+
+
+
+### Transform data to time series
+
+To support different analyses, need to develop series at different levels of aggregation (month and day). To this end first create date, day, month, & year dimensions.
+
+``` {r}
+calls911_log$date <- as.Date(calls911_log$dt)
+calls911_log$day <- day(calls911_log$dt)
+calls911_log$month <- month(calls911_log$dt)
+calls911_log$year <- year(calls911_log$dt)
+```
+
+Now use `dplyr` to aggregate and count individual records.
+
+``` {r}
+calls911_month <- calls911_log %>%
+                    group_by(year, month) %>%
+                    summarise(date = min(date), days = n_distinct(day), count = n()) %>%
+                    arrange(date)
+                    
+calls911_date <- calls911_log %>%
+                    count(date) %>%
+                    arrange(date)
+```
+
+First turn calls911_date into a time series, and inspect the reliability of the time logs data.
+
+``` {r}
+ts_date <- xts(calls911_date$n, order.by = calls911_date$date)
+
+plot(ts_date)
+```
+
+Investigate the large spike in volume.
+
+``` {r}
+arrange(calls911_date, desc(n))
+```
+
+Based on the intial daily inspection, the data looks unstable until November 2011. As well, the latest week looks uncured. Moving forward, these dates should be excluded to avoid training on noise.
+
+Now inspect the number of distinct days in each month with log entries to ensure we only select from stable months.
+
+``` {r}
+dcast(calls911_month, year ~ month, value.var = 'days')
+```
+
+It appears that time series is not represented consistently until October 2011. Hence, the time filter determined earlier is still valid.  
+
+Now create a time series at the monthly aggregation level.
+
+``` {r}
+df <- filter(calls911_month, date >= '2011-11-01' & date <= '2016-04-01')
+
+ts_month <- ts(df$count, start = (2011 + (11 - 1)/12), deltat = 1/12)
+
+plot(ts_month)
+```
+
+
+
+### Investigating monthly Fire 911 call dispatch volumes
+
+The initial look appeared that there was a significant growth trend and likely heterogenity is present. Now compare plots with different transformations (none, log, and differenced logs).
+
+``` {r}
+par(mfrow=c(3,1))
+plot(ts_month)
+plot(log(ts_month))
+plot(diff(log(ts_month)))
+par(mfrow=c(1,1))
+```
+
+Now lets also look at the ACF & PACF plots to investigate autocorrelation patterns for different ransformations (none, log, and differenced logs).
+
+``` {r}
+# plot acf & pacf function
+acf_plots <- function(ts) {
+  par(mfrow=c(2,1))
+  acf(ts, main = "ACF")
+  pacf(ts, main = "PACF")
+  par(mfrow=c(1,1))
+}
+
+# plot for all transformations
+acf_plots(ts_month)
+
+acf_plots(log(ts_month))
+
+acf_plots(diff(log(ts_month)))
+```
+
+Looking at the ACF and PACF plots we see the presence of trend and seasonal correlations. Differencing the logged series controls for many of these correlations.
+
+Overall, it looks like the series as will need to be log transformed to control for heterogenity. Further, differencing will be required; however, no transform is required for this as the `d` variable in ARIMA(p, d, q) accounts for this.
+
+Now lets use the Adjusted Dickey-Fuller test for stationarity to evaluate if the series is stationary.
+
+``` {r}
+# use log
+ts_month_log <- log(ts_month)
+
+# test for stationarity
+adf.test(diff(ts_month_log), alternative = 'stationary')
+```
+
+We reject the null hypothesis of the series not being stationary.
+
+Next lets decompose the log time series.
+
+``` {r}
+# decompose
+ts_decomp <- stl(ts_month_log, s.window = 'periodic')
+plot(ts_decomp)
+```
+
+Clear trend and seasonal components exist. To generalize the trend in growth of the 911 calls, lets investigate using an OLS model on the trend component of the series.
+
+``` {r}
+# run lm on the trend
+trend <- ts_decomp$time.series[,2]
+
+trend_lm <- lm(trend ~ time(trend))
+summary(trend_lm)
+```
+
+Note that despite the model being simple is very strong linear fit. The $R^2$ of .9726, implies that the model explains 97% of the trend data's variance. This implies the growth rate typically follows a linear pattern. As is seen visually in the following plot.
+
+``` {r}
+# plot model
+plot(trend, main = "Trend Component with Linear Fit")
+abline(mC <- lm(trend ~ time(trend)), col = "red")
+```
+
+Since the trend series is logged and 1 unit of time is set to 1 year, the time coefficient represents the annual growth rate. Now calculate the growth rate by raising the coefficient by applying an exponential to remove the log.
+
+``` {r}
+# linear trend implication
+exp(trend_lm$coefficients[2])
+```
+
+The linear model implies that each year has an average +5.25% growth rate in monthly call volume.
+
+
+
+###Predicting monthly Fire 911 call dispatch volumes using ARIMA
+
+Now that the series is investigated and transformed to a stationary time series, an ARIMA model can now be fitted. The goal is to forecast out 12 months of monthly volume of Seattle Fire 911 call dispatches.
+
+To do this use `auto.arima` to find the model with the parameters of best fit.
+
+``` {r}
+# use auto.arima to fit the model
+fit_arima <- auto.arima(ts_month_log,
+          max.p=5, max.q=5, max.d=2,
+          max.P=2, max.Q=2, max.D=2, 
+          max.order=8,
+          start.p=0, start.q=0, 
+          start.P=0, start.Q=0,
+          stepwise = FALSE)
+
+# inspect model
+summary(fit_arima)
+```
+
+Using `auto.arima`, an ARIMA(1,1,0)(1,0,0) process is determined to have the best fit. As previously noted, the ARIMA model accounted for differencing. Moreover, both the model processes are auto-regressive.
+
+Now evaluate the fit by looking at the residuals. First look at the residuals over time.
+
+``` {r}
+plot(fit_arima$residuals, main = "Plot of Residuals Over Time")
+```
+
+No noticable consistent time dependent patterns. Now check normality of residuals.
+
+``` {r}
+qqnorm(scale(fit_arima$residuals), main = "Q-Q Plot of Residuals")
+abline(a = 0, b = 1, col = 'red')
+```
+
+
+
+``` {r}
+acf_plots(fit_arima$residuals)
+```
+
+Plots inidicate that there are no significant autocorrelations in the residuals. At this point the ARIMA model is looking good and not violating assumptions.
+
+Lets evaluate how the fitted values compare to actuals and calculate the MAPE.
+
+``` {r message=FALSE, warning=FALSE}
+### MAPE (mean absolute percentage error)
+df <- data.frame(exp(fit_arima$fitted), #fitted values
+                 ts_month,             #actual values
+                 as.Date(time(ts_month)))
+colnames(df) <- c("Fitted", "Actual", "Date")
+
+MAPE <- df %>% summarise(MAPE=mean(abs(Actual-Fitted)/Actual))
+
+### Plot actual versus predicted
+ggplot(data=df, aes(x=Date)) +
+  geom_line(aes(y=Actual, colour = "Actual"), size=1) +
+  geom_line(aes(y=Fitted, colour = "Fitted"), size=1, alpha=.5) +
+  theme_bw() + theme(legend.title = element_blank()) + 
+  ylab("Seattle Fire 911 call dispatches") + xlab("") +
+  ggtitle(paste0("ARIMA --- MAPE = ", round(100*MAPE,2), "%")) + 
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))
+```
+
+Comparing the fitted and actual values, we have a 4.38% MAPE (mean absolute percentage error). Moreover, inspecting actuals and fitted values plot reveals no worrisome patterns in the process.
+
+Now predict future monthly call dispatches for the next 12 months.
+
+``` {r}
+pred_arima <- forecast(fit_arima, h = 12)
+
+plot(pred_arima)
+```
+
+Note that values are still in logs.
+
+Finally convert from the predicted log values to produce the final predicted monthly volume counts of Seattle Fire 911 call dispatches.
+
+``` {r}
+# show actual values
+round(exp(pred_arima$mean), digits = 0)
+
+# convert predicted values
+pred_arima$lower <- exp(pred_arima$lower)
+pred_arima$upper <- exp(pred_arima$upper)
+pred_arima$mean <- exp(pred_arima$mean)
+pred_arima$x <- exp(pred_arima$x)
+
+# plot
+plot(pred_arima, ylab = "Seattle Fire 911 Call Dispatches")
+```

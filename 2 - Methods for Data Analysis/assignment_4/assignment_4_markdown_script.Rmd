@@ -1,0 +1,230 @@
+---
+title: "Assignment 4: ANOVA Testing & Bootstrapping"
+subtitle: "Univeristy of Washington - Data Science Certification - Method for Data Analysis"
+author: "Josh Jensen"
+date: "July 27, 2016"
+output: html_document
+---
+
+### Assignment
+
+1. Compare the price (log price) of autos for several multi*valued categorical variables 
+    * number of doors
+    * body style
+    * drive wheels
+    * number of cylinders
+    * engine type
+2. Graphically explore the differences
+3. Use standard ANOVA and Tukey ANOVA in R
+4. Use the bootstrap distribution CIs of the differences of means
+
+### Conclusions
+
+We find statistically significant differences in log price among:
+
+* body style
+    + between hatchback & convertible, hatchback & hardtop, and sedan & hatchback.
+* drive wheels
+    + between RWD & 4WD as well as RWD & FWD
+* number of cylinders
+    + between several combinations
+* engine type
+    + between several combinations
+      
+However we observe no significant difference within log price by:
+
+* number of doors
+
+
+### Set up & cleaning
+
+Load libraries and data.
+
+``` {r message=FALSE}
+# load libraries and set working drive
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(simpleboot)
+library(combinat)
+
+# read in data
+auto_prices <- read_csv('Automobile price data _Raw_.csv', na = c('','?')) 
+```
+
+Clean data set to make it easier to work with and inspect.
+
+``` {r}
+# rename columns
+colnames(auto_prices) <- gsub('-','_', colnames(auto_prices))
+
+# subset down to columns of interest
+# price, number of doors, body style, drive wheels, number of cylinders, engine type
+vars <- c("num_of_doors", "body_style", "drive_wheels", "num_of_cylinders", "engine_type")
+auto_prices <- select(auto_prices, price, one_of(vars))
+
+# set to factor
+auto_prices[vars] <- lapply(auto_prices[vars], as.factor)
+
+# create log price
+auto_prices$log_price <- log(auto_prices$price)
+
+# final inspection of structure
+str(auto_prices)
+```
+
+
+### Compare differences in log prices
+
+First lets loop through each variable, comparing the means of each factor level.
+
+``` {r}
+# compare the means
+for (i in 1:length(vars)) {
+  temp <- auto_prices %>% 
+              group_by_(vars[i]) %>%
+              summarise(mean_log_price = mean(log_price, na.rm=T), n = n())
+  print(temp)
+}
+```
+
+Now lets get an idea of the differences in distributions by looking at boxplots for each variable.
+
+``` {r}
+# inspect boxplots
+for (i in 1:length(vars)) {
+  p <- ggplot(auto_prices, aes_string(x=vars[i], y="log_price", fill=vars[i])) +
+    geom_boxplot() +
+    ggtitle(paste("Boxplot of",vars[i]))
+  print(p)
+}
+```
+
+
+### ANOVA Tests on Group Differences
+
+Now lets test whether or not the differences in log price are due to error or not. To do this we will use the an ANOVA test, then inspect the individual differences with a Tukey ANOVA test. Lets make a function so that we can call any variable.
+
+``` {r}
+log_price_anova <- function(factor_vector) {
+  # run anova
+  anova_test <- aov(auto_prices$log_price ~ factor_vector)
+  # print results
+  writeLines("ANOVA TEST:\n")
+  print(summary(anova_test))
+  
+  # run tukey anova on anova output
+  tukey_anova <- TukeyHSD(anova_test)
+  # print results
+  writeLines("\n\n\nTUKEY ANOVA TEST:\n")
+  print(tukey_anova)
+  
+  # plot tukey anova difference in means plot for 95% confidence
+  plot(tukey_anova)
+}
+```
+
+#### Number of doors
+``` {r}
+log_price_anova(auto_prices$num_of_doors)
+```
+
+We fail to reject the null hypothesis that there is any difference within log price by number of doors.
+
+#### Body style
+``` {r}
+log_price_anova(auto_prices$body_style)
+```
+
+We reject the null hypothesis that there is any difference within log price by body style. Statistically significant differences exist between hatchback & convertible, hatchback & hardtop, and sedan & hatchback.
+
+
+#### Drive wheels
+``` {r}
+log_price_anova(auto_prices$drive_wheels)
+```
+
+We reject the null hypothesis that there is any difference within log price by drive wheels. Statistically significant differences exist between RWD & 4WD as well as RWD & FWD.
+
+#### Number of cylinders
+``` {r}
+log_price_anova(auto_prices$num_of_cylinders)
+```
+
+We reject the null hypothesis that there is any difference within log price by number of cylinders. Statistically significant differences exist for several combinations.
+
+#### Engine type
+``` {r}
+log_price_anova(auto_prices$engine_type)
+```
+
+We reject the null hypothesis that there is any difference within log price by engine type. Statistically significant differences exist for several combinations.
+
+
+### Bootstrap distribution confidence intervals 
+
+To further verify our conclusions, using a bootstraped generated distribution we generate confidence intervals in the differences in means between two factor values. We create 10,000 independent resamples with replacement for each factor value that has more than 10 observations.
+
+If 0 lies within the confidence interval of the differences of means, then we conclude that there is no difference in the log price between the two factor values in question. 
+
+``` {r}
+boot_factor_diff_in_means_log_price <- function(factor_vector, replicates = 10000, alpha = .05) {
+  
+  # use combn to output all distinct combinations of n levels of factor, with choose 2
+  
+  if (length(levels(factor_vector)) > 2) {
+    combinations <- combn(levels(factor_vector), 2)
+  } else if (length(levels(factor_vector)) == 2) { 
+    combinations <- matrix(c(levels(factor_vector)[1], levels(factor_vector)[2]), nrow = 2, ncol = 1)
+  } else {
+    stop()
+  }
+    
+  # loop through all distinct combinations
+  for (i in 1:ncol(combinations)) {
+    
+    # filter
+    df1 <- auto_prices[factor_vector == combinations[1,i],]
+    df2 <- auto_prices[factor_vector == combinations[2,i],]
+    
+    # skip bootstrapping if either has less than 10 observations
+    if ((nrow(df1)>10) & (nrow(df2)>10)) {
+      # run bootstrap
+      boot <- two.boot(na.omit(df1$log_price), na.omit(df2$log_price), mean, R = replicates)
+      
+      # print results
+      writeLines(paste("\n\n\nDifference between", combinations[1,i], "and", combinations[2,i]))
+      print(paste0("with confidence interval of ", 100 * (1 - .05), "%"))
+      print("")
+      print(paste("LOWER BOUND: ", quantile(boot$t, alpha/2)))
+      print(paste("MEAN DIFF:   ", mean(boot$t)))
+      print(paste("UPPER BOUND: ", quantile(boot$t, 1-(alpha/2))))
+    }
+  }
+}
+```
+
+#### Number of doors
+``` {r}
+boot_factor_diff_in_means_log_price(auto_prices$num_of_doors)
+```
+
+#### Body style
+``` {r}
+boot_factor_diff_in_means_log_price(auto_prices$body_style)
+```
+
+#### Drive wheels
+``` {r}
+boot_factor_diff_in_means_log_price(auto_prices$drive_wheels)
+```
+
+#### Number of cylinders
+``` {r}
+boot_factor_diff_in_means_log_price(auto_prices$num_of_cylinders)
+```
+
+#### Engine type
+``` {r}
+boot_factor_diff_in_means_log_price(auto_prices$engine_type)
+```

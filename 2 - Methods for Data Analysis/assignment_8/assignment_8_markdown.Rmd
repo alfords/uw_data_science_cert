@@ -1,0 +1,126 @@
+---
+title: "Assignment 8: Bayes Probabilities & HDI"
+subtitle: "Univeristy of Washington - Data Science Certification - Method for Data Analysis"
+author: "Josh Jensen"
+date: "August 22, 2016"
+output: html_document
+---
+
+
+
+### Assignment
+
+Compute the probability that the driver of a car is texting at a specific intersection, given the following:
+
+- Nationally the chance that a driver is texting is:
+    - P = 0.5, at x = 0.1
+    - P = 0.75 at x = 0.3
+
+- You observe cars at a location three times and note the number of texting drivers: 
+    - 2 texting out of 20 drivers
+    - 4 texting out of 20 drivers
+    - 1 texting out of 20 drivers
+
+Given these data:
+
+- Compute the Beta prior, and report the coefficents
+- Plot the prior, likelihood and posterior three times as you update your belief based on collecting more data
+- Simulate the final posterior distribution and do the following:
+    - Plot the posterior with the 90% HDI shown
+    - Report the upper and lower limits of the 90% HDI
+    - Of the next hundred drivers what are the number of texting drivers in the 90% HDI?
+    - Are the drivers in this area better or worse that the national figures indicate?
+
+
+
+### Conclusions
+
+We conclude that, based on the 90% HDI probability limits of .05986 and .19317, we find that between 6 and 20 of the next 100 drivers observed will be texting.
+
+Further we conclude that the drivers observed in the area are worse than what the national figures indicate.
+
+
+
+### Set up
+
+Load `LearnBayes` and set prior distribution.
+
+``` {r message=FALSE}
+library(LearnBayes)
+
+beta_prior <- beta.select(list(p=.5, x=.1), list(p=.75, x=.3))
+beta_prior
+```
+
+Now 2 texting out of 20 drivers are observed. We update our beliefs.
+
+``` {r}
+triplot(beta_prior, c(2, 18), where = 'topright')
+beta_prior + c(2, 18)
+```
+
+Now 4 texting out of 20 drivers are observed. Again, we update our beliefs.
+
+``` {r}
+triplot(beta_prior, c(2 + 4, 18 + 16), where = 'topright')
+beta_prior + c(2 + 4, 18 + 16)
+```
+
+Now 1 texting out of 20 drivers are observed. We update our beliefs for a final time.
+
+``` {r}
+triplot(beta_prior, c(2 + 4 + 1, 18 + 16 + 19), where = 'topright')
+beta_prior + c(2 + 4 + 1, 18 + 16 + 19)
+```
+
+
+### Evaluate posterior results
+
+First calculate the posterior beta distribution.
+
+``` {r}
+beta_post <- beta_prior + c(2 + 4 + 1, 18 + 16 + 19)
+```
+
+Compute a random sample of 100,000 observations from the posterior distribution.
+
+``` {r}
+post_sample <- rbeta(100000, beta_post[1], beta_post[2])
+```
+
+Now report the 90% HDI limits and plot a histogram the random sample.
+
+``` {r}
+# calc hdi limits
+quants <- quantile(post_sample, c(0.05, 0.95))
+quants
+
+# plot
+par(mfrow = c(1, 2))
+
+quants <- quantile(post_sample, c(0.05, 0.95))
+breaks <- seq(min(post_sample), max(post_sample), length.out = 50)
+hist(post_sample, breaks = breaks,
+     main = "Distribution of sample \n with 90% HDI"
+     , xlab = "sample value"
+     , ylab = "density")
+abline(v = quants[1], lty = 3, col = "red", lwd = 3)
+abline(v = quants[2], lty = 3, col = "red", lwd = 3)
+
+qqnorm(scale(post_sample))
+abline(a=0, b=1, col = 'red')
+
+par(mfrow = c(1, 1))
+```
+
+Based on the HDI limits we find that between 6 and 20 of the next 100 drivers observed will be texting.
+
+Finally compare to national figures by comparing the initial figures and reinspecting the plot of the prior and final posterior distribution.
+
+``` {r}
+
+pbeta(c(.1, .3), beta_post[1], beta_post[2])
+triplot(beta_prior, c(2 + 4 + 1, 18 + 16 + 19), where = 'topright')
+```
+
+Note that the posterior distribution is skewed towards higher probabilities of texting. Hence, we conclude that the drivers observed in the area are worse than what the national figures indicate.

@@ -8,3 +8,15 @@
 1 - Intro to Data Science/Lecture_08.pdf
 1 - Intro to Data Science/Lecture_09.pdf
 1 - Intro to Data Science/Lecture_10.pdf
+2 - Methods for Data Analysis/1_Introduction.pdf
+2 - Methods for Data Analysis/2_Distributions_ConditionalProb.pdf
+2 - Methods for Data Analysis/3_Outliers_HypothesisTesting.pdf
+2 - Methods for Data Analysis/4_HypothesisTesting_CentralLimit_bootstrap.pdf
+2 - Methods for Data Analysis/5_CLT_Regression.pdf
+2 - Methods for Data Analysis/6_Regression_Part2.pdf
+2 - Methods for Data Analysis/7_Logistic_Reg_Timeseries.pdf
+2 - Methods for Data Analysis/8_Bayesian_Models.pdf
+2 - Methods for Data Analysis/9_Bayesian_Models_2.pdf
+*.RData
+2 - Methods for Data Analysis/final_project/Seattle_Real_Time_Fire_911_Calls.csv
+2 - Methods for Data Analysis/Lecture10/Binary Classification_ Twitter sentiment analysis.csv

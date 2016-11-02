@@ -1,0 +1,79 @@
+---
+title: "Assignment 2: Monty Hall Simulation"
+subtitle: "Univeristy of Washington - Data Science Certification - Method for Data Analysis"
+author: "Josh Jensen"
+date: "July 12, 2016"
+output: html_document
+---
+
+### Problem
+Monty Hall problem definition from Wikipedia:
+
+*Suppose you're on a game show, and you're given the choice of three doors: Behind one door is a car; behind the others, goats. You pick a door, say No. 1, and the host, who knows what's behind the doors, opens another door, say No. 3, which has a goat. He then says to you, "Do you want to pick door No. 2?" Is it to your advantage to switch your choice?*
+
+
+
+### Create Monty Hall Simulation
+
+
+First lets load the libraries we will use.
+``` {r message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+```
+
+Now lets create a function that generates a data frame of `n` observations, with random initial door choices and random doors with the car behind. Using these randomized pieces of information, we'll also determine if they would win following each of the strategies.
+``` {r}
+simMontyHall <- function(n = 10000) {
+  df <- data.frame(door_choice = trunc(runif(n, min = 1, max = 4)),   # generates a uniform random number of 1, 2, or 3 
+                   door_with_car = trunc(runif(n, min = 1, max = 4))  # generates a uniform random number of 1, 2, or 3 
+                   )
+  # note: runif will not generate either of the extreme values unless max = min or max-min is small compared to min
+  
+  # create boolean columns for both switch & stay strategies
+  df$stay_win <- ifelse(df$door_choice == df$door_with_car, T, F)
+  
+  # note: since Monty Hall will never reveal the car, a switching strategy will win as long as the car was not behind the original choice
+  df$switch_win <- ifelse(df$door_choice != df$door_with_car, T, F)
+  
+  df
+}
+```
+
+Using this function, lets run one million observations.
+``` {r}
+df <- simMontyHall(1000000)
+head(df)
+```
+
+
+### Summarize Results
+
+Now lets calculate the probabilities & variances for each strategy. Note that because `stay_win` and `switch_win` are boolean columns, calculating the mean of the column is equivalent to calculating the probability of winning the car given the strategy.
+```{r message=FALSE}
+# create & print summary df
+summary_df <- summarise(df, stay_prob = mean(stay_win),
+                            stay_var = var(stay_win),
+                            switch_prob = mean(switch_win),
+                            switch_var = var(switch_win))
+melt(summary_df)
+```
+
+Now we can plot the differences between the simulated probabilities by the switch and stay strategies. Note that theoretically, stay should be $1/3$ and switch should be $2/3$.
+```{r message=FALSE}
+prob_df <- melt(select(summary_df, ends_with("_prob")))
+
+ggplot(prob_df, aes(x = variable, y = value)) +
+  geom_bar(stat = "identity") +
+  labs(title="Simulated Probability of Winning the Car by Strategy", x="Strategy", y="Probability")
+```
+
+We can also plot the variances of each of the strategies. Note that this is should be identical.
+```{r message=FALSE}
+var_df <- melt(select(summary_df, ends_with("_var")))
+
+ggplot(var_df, aes(x = variable, y = value)) +
+  geom_bar(stat = "identity") +
+  labs(title="Simulated Variance of Winning the Car by Strategy", x="Strategy", y="Variance")
+```

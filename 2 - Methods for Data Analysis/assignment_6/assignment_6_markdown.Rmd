@@ -1,0 +1,234 @@
+---
+title: "Assignment 6: SVD Regression and Step-Wise Regression"
+subtitle: "Univeristy of Washington - Data Science Certification - Method for Data Analysis"
+author: "Josh Jensen"
+date: "August 14, 2016"
+output: html_document
+---
+
+
+
+### Assignment
+
+Perform SVD regression on the auto price data:
+
+- Use the following features for your initial model: make, fuel.type, aspiration, body.style, drive.wheels, length, curb.weight, engine.type, num.of.cylinders, engine.size, city.mpg
+- Apply SVD to a model matrix created with model.matrix(), and report the increase in dimensionality 
+- Report how many orthogonal features you used for you model
+- Evaluate your model performance with plots and by computing RMS error. Hint see my demo code for plots
+
+Use stepwise regression to select features from the aforementioned set:
+
+- Compare model performance with full model using summary statistics, plots and ANOVA
+
+
+
+### Conclusions
+
+I run SVD regression (total least squares regression) to predict auto price. I leverage SVD to conduct feature reduction.
+
+Further, I run stepwise regression on the feature set to also predict auto price. I find no statistical difference between the linear model containing all specified features and a stepwise iteration.
+
+### Set up & cleaning
+
+First lets load libraries and data.
+
+``` {r message=FALSE}
+# load libraries and set working drive
+library(dplyr)
+library(readr)
+library(ggplot2)
+
+# read in data
+auto_prices <- read_csv('Automobile price data _Raw_.csv', na = c('','?')) 
+```
+
+Subset and clean data set to make it easier to work with and inspect.
+
+``` {r}
+# rename columns
+colnames(auto_prices) <- gsub('-','_', colnames(auto_prices))
+
+# create log price
+auto_prices$log_price <- log(auto_prices$price)
+
+# subset down to columns of interest
+# make, fuel_type, aspiration, body_style, drive_wheels, length, curb_weight, engine_type, num_of_cylinders, engine_size, city_mpg
+vars <- c("make", "fuel_type", "aspiration", "body_style", "drive_wheels", "length", "curb_weight", "engine_type", "num_of_cylinders", "engine_size", "city_mpg")
+auto_prices <- select(auto_prices, log_price, one_of(vars))
+
+# note svd requires fully balanced data set, so lets remove na's
+auto_prices <- na.omit(auto_prices)
+
+# inspection of structure
+str(auto_prices)
+```
+
+
+
+### SVD Regression
+
+#### Create model matrix
+
+
+First lets inspect the number of dimensions in the auto price data frame.
+
+``` {r}
+dim(auto_prices)
+```
+
+Note that there are 11 features and 1 outcome measure across 201 observations. Now lets create the model matrix and inspect the number of dimensions.
+
+``` {r}
+# create model matrix
+ap_matrix <- model.matrix(log_price ~ . , auto_prices)
+
+# inspect number of dimensions in matrix
+dim(ap_matrix)
+```
+
+Note that in the transformed matrix there are 45 orthogonal features. Further the outcome measure is not included in matrix.
+
+
+#### Run SVD Regression
+
+First compute the singular value decomposition (SVD) of the feature matrix.
+
+``` {r}
+ap_svd <- svd(ap_matrix)
+```
+
+Now compute the inverse of the singular values.
+
+``` {r}
+d_inverse <- diag(1/ap_svd$d)
+```
+
+Next compute the psuedo inverse.
+
+``` {r}
+psuedo_inverse <- ap_svd$v %*% t(d_inverse) %*% t(ap_svd$u)
+```
+
+Before moving on lets verify the correct calculation of puesdo matrix by inspecting if it yeilds approximately an identity matrix.
+
+``` {r}
+test <- psuedo_inverse %*% (ap_svd$u %*% diag(ap_svd$d) %*% t(ap_svd$v))
+head(test, n = 3)
+```
+
+Confirmed.
+
+Now we find model coefficients by multiplying against the outcome variable vector.
+
+``` {r}
+ap_coef <- psuedo_inverse %*% as.matrix(auto_prices$log_price)
+t(ap_coef)
+```
+
+Lets repeat the SVD regression, but now apply dimensionality reduction to produce our final model.
+
+``` {r}
+# reduce dimensionality by removing the least stable singular vectors 
+d_reduced <- ifelse(1/ap_svd$d > 0.5, 0, 1/ap_svd$d)
+d_inverse2 <- diag(d_reduced)
+```
+
+Compute the number of orthogonal features used in the final model.
+
+``` {r}
+length(d_reduced[d_reduced > 0])
+```
+
+Calculate the coeffients of the final SVD regression model.
+
+``` {r}
+psuedo_inverse2 <- ap_svd$v %*% t(d_inverse2) %*% t(ap_svd$u)
+
+ap_coef2 <- psuedo_inverse2 %*% as.matrix(auto_prices$log_price)
+t(ap_coef2)
+```
+
+
+#### Evaluate model
+
+Now lets evaluate our model by running diagnostics by looking at residuals and calculating RMSE. First we need to calculate predicted and residual values.
+
+``` {r}
+auto_prices$pred <- ap_matrix %*% ap_coef2
+auto_prices$resid <- auto_prices$pred - auto_prices$log_price
+```
+
+Leverage Prof. Steve Elston's diagnositic plots to inspect the residuals.
+
+``` {r}
+# shamelessly lifting Prof. Steve Elston's diagnositic plots, found here:
+# https://github.com/StephenElston/DataScience350/blob/master/Lecture6/SVDReg.R
+plot.diagnostic = function(df){
+  ## Plot the histogram and Q-Q of the residuals
+  par(mfrow = c(1,2))
+  hist(df$resid,
+       main = 'Histogram of residuals',
+       xlab = 'Model residuals')
+  qqnorm(df$resid)
+  par(mfrow = c(1,1))
+  
+  ## Plot the residuals vs the predicted values
+  require(ggplot2)
+  ggplot(df, aes(pred, resid)) +
+    geom_point(size = 2, alpha = 0.3) + 
+    ggtitle('Residuals vs predicted value') + 
+    xlab('Predicted values') + ylab('Residual')
+}
+
+# run diagnostic plots
+plot.diagnostic(auto_prices)
+```
+
+Plots indicate no obvious issues with the assumed normality of the residuals.
+
+Finally we compute the RMSE.
+
+``` {r}
+rmse <- sqrt(mean(auto_prices$resid^2))
+rmse
+```
+
+
+
+### Stepwise Regression
+
+Now lets use the stepwise regression as a means of feature selection. First we need to clean up the data frame and drop `pred` & `resid` values.
+
+``` {r}
+auto_prices <- dplyr::select(auto_prices, -pred, -resid)
+```
+
+Now as a baseline, we fit the full model.
+
+``` {r}
+ap_lm <- lm(log_price ~ ., data = auto_prices)
+
+summary(ap_lm)
+plot(ap_lm)
+```
+
+Using the full model we then use the `stepAIC` function to run stepwise regression.
+
+``` {r}
+# fit step wise
+library(MASS)
+ap_lmstep <- stepAIC(ap_lm, direction = 'both')
+
+summary(ap_lmstep)
+plot(ap_lmstep)
+```
+
+
+Finally we, compare the baseline model and the step-wise model with ANOVA.
+
+``` {r}
+anova(ap_lmstep, ap_lm)
+```
+
+Fail to reject the null hypothesis, indicating that there is no statistical difference between the models.

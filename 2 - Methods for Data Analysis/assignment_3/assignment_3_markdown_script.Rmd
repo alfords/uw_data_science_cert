@@ -1,0 +1,200 @@
+---
+title: "Assignment 3: Hypothesis Testing"
+subtitle: "Univeristy of Washington - Data Science Certification - Method for Data Analysis"
+author: "Josh Jensen"
+date: "July 20, 2016"
+output: html_document
+---
+
+### Set up
+First lets load libraries and data, as well as standardizing the column names.
+
+``` {r message=FALSE}
+# load libraries
+library(dplyr)
+library(readr)
+library(ggplot2)
+
+# read in data
+auto_prices <- read_csv('Automobile price data _Raw_.csv', na = c('','?')) 
+
+# rename columns
+colnames(auto_prices) <- gsub('-','_', colnames(auto_prices))
+```
+
+### Problem 1: Test normality of price & log price
+Compare and test normality the distributions of price and log price - two tests
+
+#### Transformations
+Lets log transform the price data to `log_price`. As well, apply a z normalization to the `price` and `log_price` in order to standardize the Q-Q plots and use in Kolmogorov-Smirnov and Shapiro-Wilk normality tests. 
+``` {r}
+# create log_price
+auto_prices$log_price <- log(auto_prices$price)
+
+# z normalize prices
+auto_prices$z_price <- (auto_prices$price - mean(auto_prices$price, na.rm = T)) / sd(auto_prices$price, na.rm = T)
+auto_prices$z_log_price <- (auto_prices$log_price - mean(auto_prices$log_price, na.rm = T)) / sd(auto_prices$log_price, na.rm = T)
+```
+
+#### Inspect distributions
+Lets inspect how `z_price` is distributed by looking at a histogram and Q-Q plot.
+``` {r}
+hist(auto_prices$z_price)
+```
+
+``` {r}
+qqnorm(auto_prices$z_price, main = 'Q-Q Plot of Price')
+abline(a=0, b=1, col='red')
+```
+
+First inspection looks pretty far off of being normally distributed.
+
+Now lets inspect the distribution of `z_log_price`.
+``` {r}
+hist(auto_prices$z_log_price)
+```
+
+``` {r}
+qqnorm(auto_prices$z_log_price, main = 'Q-Q Plot of Log Price')
+abline(a=0, b=1, col='red')
+```
+
+`z_log_price` looks to be a lot closer to being normally distributed. Now lets formally test the normality of both.
+
+
+#### K-S Tests (Kolmogorov-Smirnov test)
+First we'll test against normality using the Kolmogorov-Smirnov test for both `z_price` and `z_log_price`. In each case I'll state the null and alternative hypothesis.
+
++ *Null Hypothesis:* `z_price` is normally distributed
++ *Alternative Hypothesis:* `z_price` is not normally distributed
+``` {r}
+ks.test(auto_prices$z_price, pnorm)
+```
+
+Under 95% confidence, we reject the null hypothesis of `z_price` being normally distributed.
+
++ *Null Hypothesis:* `z_log_price` is normally distributed
++ *Alternative Hypothesis:* `z_log_price` is not normally distributed
+``` {r}
+ks.test(auto_prices$z_log_price, pnorm)
+```
+
+Under 95% confidence, we reject the null hypothesis of `z_log_price` being normally distributed.
+
+
+#### Shapiro-Wilk Normality Test
+Now for `z_price` and `z_log_price` we'll test against normality using the Shapiro-Wilk Normality test.
+
++ *Null Hypothesis:* `z_price` is normally distributed
++ *Alternative Hypothesis:* `z_price` is not normally distributed
+``` {r}
+shapiro.test(auto_prices$z_price)
+```
+
+Under 95% confidence, we reject the null hypothesis of `z_price` being normally distributed.
+
++ *Null Hypothesis:* `z_log_price` is normally distributed
++ *Alternative Hypothesis:* `z_log_price` is not normally distributed
+``` {r}
+shapiro.test(auto_prices$z_log_price)
+```
+
+Under 95% confidence, we reject the null hypothesis of `z_log_price` being normally distributed.
+
+#### Conclusion
+In all cases, for both Kolmogorov-Smirnov and Shapiro-Wilk tests, we reject the null hypotheses of both `z_price` and `z_log_price` being normally distributed.
+
+
+
+### Problem 2: Hypothesis testing on difference of means of significance of price (log price)
+Test significance of price (log price) stratified by a) fuel type, b) aspiration, and c) rear vs. front wheel drive
+
+
+#### Fuel type
+Lets first inspect `fuel_type`.
+``` {r}
+table(auto_prices$fuel_type)
+```
+
+``` {r}
+auto_prices %>%
+  group_by(fuel_type) %>%
+  summarise(mean_log_price = mean(log_price, na.rm=T), 
+            sd_log_price = sd(log_price, na.rm=T), 
+            se_log_price = sd(log_price, na.rm=T)/n())
+```
+
+Now lets perform a two-tailed t-test where:
+
++ *Null Hypothesis:* For `log_price`, $\mu_{diesel} = \mu_{gas}$
++ *Alternative Hypothesis:* For `log_price`, $\mu_{diesel} \neq \mu_{gas}$
+``` {r}
+diesel <- auto_prices[auto_prices$fuel_type == 'diesel',]
+gas <- auto_prices[auto_prices$fuel_type == 'gas',]
+
+t.test(diesel$log_price, gas$log_price, alternative = 'two.sided')
+```
+
+Under 95% confidence, we fail to reject the null hypothesis of the population mean `log_price` being equal for diesel and gas.
+
+
+#### Aspiration
+
+Similarly, lets first inspect `aspiration`.
+``` {r}
+table(auto_prices$aspiration)
+```
+
+``` {r}
+auto_prices %>% 
+  group_by(aspiration) %>%
+  summarise(mean_log_price = mean(log_price, na.rm=T), 
+            sd_log_price = sd(log_price, na.rm=T), 
+            se_log_price = sd(log_price, na.rm=T)/n())
+```
+
+Since from general domain knowledge we know that turbo is an upgrade from standard, we can assume that holding all else equal the price of a turbo should never be less than a standard. Hence, we should conduct a one-tailed test. Now lets perform a one-tailed t-test where:
+
++ *Null Hypothesis:* For `log_price`, $\mu_{standard} = \mu_{turbo}$
++ *Alternative Hypothesis:* For `log_price`, $\mu_{standard} < \mu_{turbo}$
+``` {r}
+std <- auto_prices[auto_prices$aspiration == 'std',]
+turbo <-  auto_prices[auto_prices$aspiration == 'turbo',]
+
+t.test(std$log_price, turbo$log_price, alternative = 'less')
+```
+
+Under 95% confidence, we reject the null hypothesis of the population mean `log_price` being equal across standard and turbo.
+
+
+#### Drive wheels
+
+Finally, lets inspect `drive_wheels`.
+``` {r}
+table(auto_prices$drive_wheels)
+```
+
+``` {r}
+auto_prices %>% 
+  group_by(drive_wheels) %>%
+  summarise(mean_log_price = mean(log_price, na.rm=T), 
+            sd_log_price = sd(log_price, na.rm=T), 
+            se_log_price = sd(log_price, na.rm=T)/n())
+```
+
+Now lets perform a two-tailed t-test where:
+
++ *Null Hypothesis:* For `log_price`, $\mu_{FWD} = \mu_{RWD}$
++ *Alternative Hypothesis:* For `log_price`, $\mu_{FWD} \neq \mu_{RWD}$
+``` {r}
+fwd <- auto_prices[auto_prices$drive_wheels == 'fwd',]
+rwd <- auto_prices[auto_prices$drive_wheels == 'rwd',]
+
+t.test(fwd$log_price, rwd$log_price, alternative = 'two.sided')
+```
+
+Under 95% confidence, we reject the null hypothesis of the population mean `log_price` being equal for FWD and RWD.
+
+
+#### Conclusion
+We find a statistically significant difference in the log price across different types of aspiration and across different types of drive wheels; however, we do not find a significant difference in the log price across different fuel types.
