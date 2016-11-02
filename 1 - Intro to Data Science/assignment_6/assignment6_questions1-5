@@ -1,0 +1,58 @@
+1. {a, b, c} is a relation that contains the tuples a, b, and c. In the following cases the tuples have arity of 1. Calculate the following:
+	a. ({1, 2, 3} ᴜ {5, 7, 11}) ∩ {2, 4, 6, 8, 10}
+	{2}
+
+	b. ({1, 2, 3} ∩ {2, 4, 6, 8, 10}) ᴜ ({5, 7, 11} ∩ {2, 4, 6, 8, 10})
+	{2}
+
+
+
+2. A relation exists with 4 columns, named Column1, Column2, Column3, and Column4. Column1 is of type text. Column2, Column3, and Column4 are of type int: 
+	a. Use relational algebra to fulfill the intent of the following SQL. 
+		• SELECT Column1, Column3 FROM MyTable WHERE Column2 = Column3
+	π c1,c2,c3,c4 (σ c2=c3 (MyTable))
+
+	b. Reverse the order of projection and selection in your algebraic formulation from item 2a. What is the result of the new algebraic expression?
+	σ c2=c3 (π c1,c2,c3,c4 (MyTable))
+	No difference in the result, as c2 & c3 both exist in the project relation.
+
+
+
+3. π c1, c2 (σ ϕ1 (σ ϕ2 (π c1, c2, c3, c5 (R)))) 
+		Where
+		• ϕ1: C1 = C5;
+		• ϕ2: C5 = “Test”;
+		• R:  MyTable;
+	a. Write a SQL statement that declares the intent of the algebraic notation
+	SELECT c1, c2
+	FROM (
+		SELECT c1, c2, c3, c5
+		FROM MyTable
+		) AS t
+	WHERE c1 = c5
+		AND c5 = "Test"
+	;
+
+	b. Simplify the algebraic statement. Simplification means minimize the number of parentheses and terms.
+	π c1, c2 (σ c1 = c5 (σ c5 = "Test" (R)))
+
+
+4. SELECT * FROM T1 JOIN T2 ON T1.C1 = T2.C1
+	a. Write out an equivalent in relational algebra using the join operator
+	T1 ><ϕ1 T2 
+	where ϕ1 = (T1.C1 = T2.C1)
+
+	b. Write out an equivalent in relational algebra without using the join operator
+	σ T1.C1 = T2.C1 (T1 X T2)
+
+
+5. π S.C1, R.C2 (σ ϕ1 (R) >< ϕ2 S)
+		where 
+		• ϕ1 = (R.C2 = ‘A’)
+		• ϕ2 = (R.C1 = S.C2)
+	• Write out equivalent SQL and test this SQL using relations R and S that you create for this example. The relations R and S in RelationalAlgebraAndSQL.pdf and RelationalAlgebraAndSQL.sql don’t quite work because their column types do not match for this assignment. 
+	SELECT S.C1, R.C2
+	FROM R
+	JOIN S
+		ON R.C1 = S.C2
+	WHERE R.C2 = 'A'

@@ -1,0 +1,12 @@
+SESSION 2: clustering
+
++ k-means algorithm
+	1. randomly determine k points
+	2. assign each observation to the closest k points, to form k clusters
+	3. calculate means of each k cluster, then set that equal the new k points
+	4. repeat 2 & 3 until convergence
+
++ determining optimal k
+	- no dominant solution
+	- some heuristics
+		>> point of decreasing marginal returns

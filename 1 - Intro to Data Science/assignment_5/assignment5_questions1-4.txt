@@ -1,0 +1,70 @@
+1. Training vs Test Data
+a) Why are performance metrics better on training data than on test data?
+Essentially this is because the model also in part trains to the noise present in the training data as well as the persistant signal. As noise is random, the noise present in between the training and test is likely to be substantially different, hence causing the model to perform not as well. 
+
+b) Given modeling data, how do you determine which of this data will become training data and which data will become test data?
+Predetermine what percentage will be used for training and testing. Then the individual rows are randomly split between training and test given the predetermined percentage.
+
+c) Given a dataset that was either test or training data, how can you determine if this dataset was training data or test data?
+It is common practice that training data is larger than testing data. There is no difference in schema as both datasets come from the same source modeling data. 
+
+
+
+2. Beware, this problem contains irrelevant data while some important numbers are not explicitly presented. A model was trained on 300 individuals where 149 had the cold and 151 were healthy. The mode was tested on 100 individuals where 10 were actually ill. The model correctly predicted that 85 of the healthy individuals were indeed healthy and correctly predicted that 7 of the ill individuals were indeed ill. The other predictions were incorrect. Consult Wikipedia: http://en.wikipedia.org/wiki/Precision_and_recall  and construct a confusion matrix and then calculate the following:
+
+Confusion Matrix:
+
+			Predicted
+			Ill		Healthy
+Actual
+	Ill 	7		3
+
+	Healthy 5		85
+
+
+a) Sensitivity (TPR or recall)
+TP / P = TP / (TP+FN) = 7 / (7+3) = 70%
+
+b) Specificity (TNR)
+TN / N = TN / (TN+FP) = 85 / (85+5) = 89%
+
+c) Accuracy
+(TP+TN) / Obs = (7+85) / 100 = 92%
+
+d) Precision
+TP / (TP+FP) = 7 / (7+5) = 58%
+
+e) Recall (TPR or sensitivity)
+TP / (TP+FN) = 7 / (7+3) = 70%
+
+
+
+3. The probability threshold for a classification varies in an ROC chart from 0 to 1. 
+a) What point of the graph corresponds to a threshold of zero?
+(1,1) Hence when the threshold is 0 all observations are presumed to be positive.
+
+b) What point of the graph corresponds to a threshold of one?
+(0,0) Hence when the threshold is 1 all observations are presumed to be negative.
+
+c) What point of the graph corresponds to a threshold of 0.5? (trick question)
+It differs with each model and test data.
+
+
+
+4. A Classification is tested on 1000 cases. In the approximate middle of its ROC chart there is a point where the false positive rate is 0.4, the true positive rate is 0.8, and the accuracy is 0.7. 
+a) What does the confusion matrix look like? 
+
+FPR = FP / N = FP / (TN+FP) = .4
+TPR = TP / P = TP / (TP+FN) .8
+Acc = (TP+TN) / Obs = .7
+
+Confusion Matrix:
+		Predicted
+		P		N
+Actual
+	P 	400		100
+
+	N 	200		300
+
+b) What can you say about the probability threshold at that point? (trick question)
+Nothing, other than it is not equal to 0 or 1.

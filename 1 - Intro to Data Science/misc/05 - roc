@@ -1,0 +1,13 @@
+SESSION 5: ROC
+
+
++ How a ROC is calculated
+	>> model outputs probabilities -> threshold -> predictions -> confusion matrix
+
+	>> adjust threshold between 0 - 1 to get a se
+
++ Plots True Positive Rate & False Positive Rate
+
++ AUC -> area under the curve
+	>> integral under the curve
+	>> .5 = random chance

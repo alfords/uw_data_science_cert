@@ -1,0 +1,89 @@
+HDFS Lab (1)
+hadoop fs 僕s /
+hadoop fs 僕s /user
+hadoop fs 僕s /user/doesnotexist
+hadoop fs 僕s /user/training
+
+HDFS Lab (2)
+cd ~/training_materials/developer/data
+ls
+tar zxvf shakespeare.tar.gz
+ls
+
+HDFS Lab (3)
+hadoop fs -put shakespeare /user/training/shakespeare
+hadoop fs -ls /user/training
+
+HDFS Lab (4)
+hadoop fs -ls /user/training/shakespeare
+
+HDFS Lab (5)
+hadoop fs -cat shakespeare/histories | tail -n 20
+
+HDFS Lab (6)
+cd ~
+ls
+hadoop fs -get shakespeare/poems ~/shakepoems.txt
+ls
+
+sqoop Lab (1)
+sqoop help
+sqoop list-databases --connect jdbc:mysql://localhost --username training --password training
+sqoop list-tables --connect jdbc:mysql://localhost/movielens --username training --password training
+
+sqoop Lab (2)
+sqoop import --connect jdbc:mysql://localhost/movielens --username training --password training --fields-terminated-by '\t' --table movie
+hadoop fs -ls movie
+hadoop fs -tail movie/part-m-00000
+
+sqoop Lab (3)
+sqoop import --connect jdbc:mysql://localhost/movielens --username training --password training --fields-terminated-by '\t' --table movierating
+hadoop fs -ls movierating
+hadoop fs -tail movierating/part-m-00000
+
+Hive Lab (1)
+hadoop fs -cat /movie/part-m-00000 | head
+hadoop fs -cat /movierating/part-m-00000 | head
+hive
+CREATE EXTERNAL TABLE movie (id INT, name STRING, year INT) ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' LOCATION '/user/training/movie';
+CREATE EXTERNAL TABLE movierating (userid INT, movieid INT, rating INT) ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' LOCATION '/user/training/movierating';
+
+Hive Lab (2)
+SHOW TABLES;
+DESCRIBE movie;
+DESCRIBE movierating;
+SELECT * FROM movie WHERE year < 1925;
+SELECT * FROM movie WHERE year < 1925 AND year != 0 ORDER BY name;
+SELECT * FROM movierating WHERE userid=149;
+SELECT AVG(rating) FROM movierating WHERE userid=149;
+SELECT userid, COUNT(userid),AVG(rating) FROM movierating where userid < 10 GROUP BY userid;
+
+Hive Lab (3)
+CREATE TABLE MovieRated (MovieID INT, NumRatings INT, AvgRating FLOAT);
+insert overwrite table MovieRated SELECT movieid,COUNT(movieid),AVG(rating) FROM movierating GROUP BY movieid;
+SELECT COUNT(*) FROM MovieRated;
+SELECT * FROM MovieRated WHERE AvgRating > 4.4 and NumRatings  > 1000;
+
+Hive Lab (4)
+select name, NumRatings , AvgRating from MovieRated join movie on MovieRated.movieid=movie.id where AvgRating > 4.4 and NumRatings > 500 ORDER BY AvgRating;
+QUIT;
+
+Hive Lab (5) Impala
+select name, NumRatings , AvgRating from MovieRated join movie on MovieRated.movieid=movie.id where NumRatings > 500 ORDER BY AvgRating DESC limit 20;
+
+MapReduce Lab (2)
+cd ~/workspace/wordcount/src
+ls
+ls solution
+hadoop classpath
+javac -classpath `hadoop classpath` solution/*.java
+ls solution
+
+MapReduce Lab (3)
+jar cvf wordcount.jar solution/*.class
+ls
+hadoop jar wordcount.jar solution.WordCount shakespeare wordcounts
+hadoop fs -ls wordcounts
+hadoop fs -cat wordcounts/part-r-00000 | less
+hadoop jar wc.jar solution.WordCount shakespeare/poems pwords
+

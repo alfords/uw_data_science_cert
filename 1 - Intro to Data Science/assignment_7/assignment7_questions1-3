@@ -1,0 +1,90 @@
+Assignment 7
+Josh Jensen
+
+
+1. On the next slide is a sparse multi-dimensional matrix. Create a standard table, called Table 1, and an EAV representation, called Table 2, of this sparse matrix. The slides titled “Sparse Matrices: Exercise” present an example of this kind of task.  Create these tables by “hand”.  Show the actual tables. You do not need to write code.
+a) Table 1 will have as headers: A, B, C, & N. 
+
+Table 1
+
+A	B	C	N
+2	1	1	17
+2	1	3	23
+1	3	3	29
+
+
+b) Table 2 will have as its headers: R, C, & M. The “C” in Table 2 has a different meaning than the “C” in Table 1.
+
+Table 2
+
+R 	C 	M
+1	A	2
+1	B	1
+1	C	1
+1	N	17
+2	A	2
+2	B	1
+2	C	3
+2	N	23
+3	A	1
+3	B	3
+3	C	3
+3	N	29
+
+
+
+2. Change the schema of the data in item 1 above by changing the EAV table, called Table 2 in the following way:  New values will represent Cost per Area (CPA). You can calculate CPA from the existing information. Modify this table by “hand”. You do not 
+need to write code.
+
+Table 2
+
+R 	C 	M
+1	A	2
+1	B	1
+1	C	1
+1	N	17
+1	C/A 0.5
+2	A	2
+2	B	1
+2	C	3
+2	N	23
+2	C/A 1.5
+3	A	1
+3	B	3
+3	C	3
+3	N	29
+3	C/A 3
+
+
+
+3. Use SQL to manipulate Sparse Matrices in the EAV format. Use select statements to transform the relations. Do not use create, update, or insert to modify the database. The SQL code is simple like in the Exercises 1 through 4 of MatrixAlgebra.sql.  Given that 2D matrices are directly encoded with the EAV schema do the following: 
+a) Write SQL for scalar multiplication of a 2D Matrix stored in the EAV schema. See Exercise 5 in MatrixAlgebra.sql
+
+SELECT 
+	R,
+	C,
+	V * 7 AS scaled_V
+FROM EAV_Table_A
+
+
+b) Write SQL for transposition of a 2D Matrix stored in the EAV schema.  See Exercise 6 in MatrixAlgebra.sql and the next slide.
+
+SELECT
+	C AS 'R',
+	R AS 'C',
+	V
+FROM EAV_Table_A
+
+
+c) Optional: Write SQL for addition of two 2D matrices in the EAV schema.  See Exercise 7 in MatrixAlgebra.sql. 
+
+Assuming eav1 & eav2 have identical row & column schemas
+
+SELECT 
+	eav1.R,
+	eav1.C,
+	(eav1.V + eav2.V) AS 'V'
+FROM eav1
+JOIN eav2
+	ON eav1.R = eav2.R
+	AND eav1.C = eav2.C
