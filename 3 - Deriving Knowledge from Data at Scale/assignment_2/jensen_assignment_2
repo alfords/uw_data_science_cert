@@ -1,0 +1,28 @@
+Assignment 2 - Decisions Trees and Classification 
+UW Data Science Certification - Deriving Knowledge from Data at Scale
+Josh Jensen
+
+
+ 
+In this problem we will use historical data from past customer responses to build a classification model. In class next week we will apply the trained model to a new set of prospects to whom we may want extend an offer for a PEP. Rather than doing a mass marketing campaign to all new prospects, we would like to target those that are likely to respond positively to our offer (according to our classification model).
+
+1.  Use 10-fold cross-validation to evaluate your model accuracy. 
+	Done.
+
+2.  Spend time experimenting with different setting for the tree, such as pruning, etc. to see if you can improve the performance of your model. 
+	Done.
+
+3.  Review the structure of the tree, note the more important features and information that Weka is providing about the structure of the tree. 
+	Done.
+
+4.  Examine the performance measures that the tool provides, review lecture notes if you are unsure what these measure are. 
+	Done.
+
+5.  Generate the ROC curve for your final model
+	Done.
+
+6.  Record the final decision tree and model accuracy statistics obtained from your model. Be sure to indicate the parameters you use in building your classification model.
+	Done.
+
+7.  You should also generate and create a screen shot of your tree by selecting the "Visualize tree" command from the same menu.
+	Done.

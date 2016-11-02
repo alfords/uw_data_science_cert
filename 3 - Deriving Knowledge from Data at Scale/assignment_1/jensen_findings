@@ -1,0 +1,25 @@
+Assignment 1 - Low-cost Sensor
+UW Data Science Certification - Deriving Knowledge from Data at Scale
+Josh Jensen
+
+1. Read WineQuality.pdf.
+	Done.
+
+2. Use the RedWhiteWine.csv/arff file that is provided, and upload to Azure Machine Learning as a dataset (Note: If needed, remove the quality attribute, which you will not need for this assignment.)
+	Done.
+
+3. Build an experiment in Azure Machine Learning using Decision Trees or Logistic Regression.
+	3-1. What is the percentage of correct classification results (using all attributes)?
+	99.5%
+
+	3-2. What is the percentage of correct classification results (using a subset of the attributes)?
+		97.7%
+
+	3-3. What is the AUC of your model?
+		0.989
+
+4. What is your best AUC that you can achieve?
+	0.998
+
+5. Which are the the minimum number of attributes? Why?
+	2 is the minimum number of attributes; 'Total Sulfur Dioxide' and 'Chlorides'. When including only 'Total Sulfur Dioxide' (the most important feature as measured by permutation feature importance) the model falls below the 95% accuracy threshold with an accuracy of 91.8%.
